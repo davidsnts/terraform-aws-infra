@@ -126,21 +126,4 @@ resource "aws_lb_target_group_attachment" "attach" {
   port             = 80
 }
 
-# ---------- RDS ----------
-resource "aws_db_subnet_group" "rds_subnet_group" {
-  name       = "rds-subnet-group"
-  subnet_ids = [aws_subnet.subnet_a.id, aws_subnet.subnet_b.id]
-}
 
-resource "aws_db_instance" "rds" {
-  identifier           = "terraform-db"
-  allocated_storage    = 20
-  engine               = "postgres"
-  engine_version       = "16.8"
-  instance_class       = "db.t3.micro"
-  username             = "terraform_user"
-  password             = "Admin1234!"
-  db_subnet_group_name = aws_db_subnet_group.rds_subnet_group.name
-  skip_final_snapshot  = true
-  publicly_accessible  = true
-}
