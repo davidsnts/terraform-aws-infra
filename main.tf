@@ -1,34 +1,46 @@
-terraform {
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = ">= 4.0"  # Compatível com a maioria dos recursos básicos
-    }
-  }
-
-  required_version = ">= 1.5"
-}
-
 provider "aws" {
   region = "us-east-1"
 }
 
-# ---------- Data source: Default VPC ----------
-data "aws_vpc" "default" {
-  default = true
+# ---------- VPC ----------
+resource "aws_vpc" "main" {
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_support   = true
+  enable_dns_hostnames = true
 }
 
-# ---------- Data source: Subnet pública da AZ ----------
-data "aws_subnet" "default" {
-  default_for_az      = true
-  availability_zone   = "us-east-1a"
-  vpc_id              = data.aws_vpc.default.id
+# ---------- Subnet ----------
+resource "aws_subnet" "public" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.1.0/24"
+  map_public_ip_on_launch = true
+  availability_zone       = "us-east-1a"
+}
+
+# ---------- Internet Gateway ----------
+resource "aws_internet_gateway" "igw" {
+  vpc_id = aws_vpc.main.id
+}
+
+# ---------- Route Table ----------
+resource "aws_route_table" "rt" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.igw.id
+  }
+}
+
+resource "aws_route_table_association" "a" {
+  subnet_id      = aws_subnet.public.id
+  route_table_id = aws_route_table.rt.id
 }
 
 # ---------- Security Group ----------
 resource "aws_security_group" "ec2_sg" {
   name   = "ec2-sg"
-  vpc_id = data.aws_vpc.default.id
+  vpc_id = aws_vpc.main.id
 
   ingress {
     from_port   = 22
@@ -52,11 +64,11 @@ resource "aws_security_group" "ec2_sg" {
   }
 }
 
-# ---------- EC2 Instance ----------
+# ---------- EC2 ----------
 resource "aws_instance" "web" {
   ami                         = "ami-0c02fb55956c7d316" # Amazon Linux 2
   instance_type               = "t2.micro"
-  subnet_id                   = data.aws_subnet.default.id
+  subnet_id                   = aws_subnet.public.id
   associate_public_ip_address = true
   vpc_security_group_ids      = [aws_security_group.ec2_sg.id]
 
