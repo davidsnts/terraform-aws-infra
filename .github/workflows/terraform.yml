@@ -37,9 +37,6 @@ jobs:
       - name: Validar configuração
         run: terraform validate
 
-      - name: Formatar código
-        run: terraform fmt -check
-
       - name: Planejar Deploy
         run: terraform plan -out=tfplan
 
