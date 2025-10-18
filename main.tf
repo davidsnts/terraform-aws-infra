@@ -2,52 +2,10 @@ provider "aws" {
   region = "us-east-1"
 }
 
-# ---------- VPC ----------
-resource "aws_vpc" "main" {
-  cidr_block = "10.0.0.0/16"
-  enable_dns_support   = true      
-  enable_dns_hostnames = true      
-}
-
-resource "aws_subnet" "subnet_a" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = "10.0.1.0/24"
-  availability_zone = "us-east-1a"
-}
-
-resource "aws_subnet" "subnet_b" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = "10.0.2.0/24"
-  availability_zone = "us-east-1b"
-}
-
-resource "aws_internet_gateway" "igw" {
-  vpc_id = aws_vpc.main.id
-}
-
-resource "aws_route_table" "rt" {
-  vpc_id = aws_vpc.main.id
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.igw.id
-  }
-}
-
-resource "aws_route_table_association" "a" {
-  subnet_id      = aws_subnet.subnet_a.id
-  route_table_id = aws_route_table.rt.id
-}
-
-resource "aws_route_table_association" "b" {
-  subnet_id      = aws_subnet.subnet_b.id
-  route_table_id = aws_route_table.rt.id
-}
-
-# ---------- Security Groups ----------
+# ---------- Security Group ----------
 resource "aws_security_group" "ec2_sg" {
-  name        = "ec2-sg"
-  vpc_id      = aws_vpc.main.id
+  name   = "ec2-sg"
+  vpc_id = data.aws_vpc.default.id
 
   ingress {
     from_port   = 22
@@ -73,11 +31,11 @@ resource "aws_security_group" "ec2_sg" {
 
 # ---------- EC2 Instance ----------
 resource "aws_instance" "web" {
-  ami           = "ami-0c02fb55956c7d316" # Amazon Linux 2
-  instance_type = "t2.micro"
-  subnet_id     = aws_subnet.subnet_a.id
-  vpc_security_group_ids = [aws_security_group.ec2_sg.id]
+  ami                         = "ami-0c02fb55956c7d316" # Amazon Linux 2
+  instance_type               = "t2.micro"
   associate_public_ip_address = true
+  vpc_security_group_ids      = [aws_security_group.ec2_sg.id]
+  subnet_id                   = data.aws_subnet_ids.default.ids[0]
 
   tags = {
     Name = "TerraformWebServer"
@@ -93,37 +51,11 @@ resource "aws_instance" "web" {
               EOF
 }
 
-# ---------- Load Balancer ----------
-resource "aws_lb" "alb" {
-  name               = "terraform-alb"
-  internal           = false
-  load_balancer_type = "application"
-  subnets            = [aws_subnet.subnet_a.id, aws_subnet.subnet_b.id]
-  security_groups    = [aws_security_group.ec2_sg.id]
+# ---------- Data sources for default VPC ----------
+data "aws_vpc" "default" {
+  default = true
 }
 
-resource "aws_lb_target_group" "tg" {
-  name     = "terraform-tg"
-  port     = 80
-  protocol = "HTTP"
-  vpc_id   = aws_vpc.main.id
+data "aws_subnet_ids" "default" {
+  vpc_id = data.aws_vpc.default.id
 }
-
-resource "aws_lb_listener" "http" {
-  load_balancer_arn = aws_lb.alb.arn
-  port              = 80
-  protocol          = "HTTP"
-
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.tg.arn
-  }
-}
-
-resource "aws_lb_target_group_attachment" "attach" {
-  target_group_arn = aws_lb_target_group.tg.arn
-  target_id        = aws_instance.web.id
-  port             = 80
-}
-
-
