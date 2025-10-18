@@ -24,7 +24,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1  # ajuste conforme sua região
+          aws-region: us-east-1
 
       - name: Instalar Terraform
         uses: hashicorp/setup-terraform@v3
@@ -37,9 +37,12 @@ jobs:
       - name: Validar configuração
         run: terraform validate
 
+      - name: Formatar código
+        run: terraform fmt -check
+
       - name: Planejar Deploy
         run: terraform plan -out=tfplan
 
       - name: Aplicar Deploy
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: terraform apply -auto-approve tfplan
